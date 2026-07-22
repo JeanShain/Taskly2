@@ -15,6 +15,7 @@ from services.screen_images import (HELP_IMAGE, SETTINGS_IMAGE,)
 
 router = Router()
 
+
 def build_home_text(
     first_name: str,
     telegram_id: int
