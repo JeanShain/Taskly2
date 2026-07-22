@@ -6,6 +6,7 @@ from config import DATABASE_URL
 
 engine_options = {
     "echo": False,
+    "pool_pre_ping": True,
 }
 
 if DATABASE_URL.startswith("sqlite"):

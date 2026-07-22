@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 from typing import Optional
 from aiogram import Bot, F, Router
@@ -243,6 +244,10 @@ async def process_task_deadline(
     CreateTaskStates.waiting_for_priority,
     F.data.startswith("create:priority:")
 )
+@router.callback_query(
+    CreateTaskStates.waiting_for_priority,
+    F.data.startswith("create:priority:")
+)
 async def process_task_priority(
     callback: CallbackQuery,
     state: FSMContext,
@@ -257,26 +262,31 @@ async def process_task_priority(
         )
         return
 
-    task_data = await state.get_data()
-    deadline = datetime.strptime(
-        task_data["deadline"],
-        "%Y-%m-%d %H:%M:%S"
-    )
+    # Одразу прибираємо анімацію завантаження на кнопці
+    await callback.answer()
 
     db = SessionLocal()
 
     try:
+        task_data = await state.get_data()
+
+        deadline = datetime.strptime(
+            task_data["deadline"],
+            "%Y-%m-%d %H:%M:%S"
+        )
+
         user = get_user_by_telegram_id(
             db,
             callback.from_user.id
         )
 
         if user is None:
-            await callback.answer(
-                "Спочатку надішліть /start",
-                show_alert=True
-            )
             await state.clear()
+
+            await bot.send_message(
+                callback.from_user.id,
+                "Користувача не знайдено. Надішліть команду /start."
+            )
             return
 
         task = create_task(
@@ -287,32 +297,41 @@ async def process_task_priority(
             priority=priority,
             deadline=deadline
         )
+
+    except Exception:
+        db.rollback()
+
+        logging.exception(
+            "Помилка створення завдання. telegram_id=%s",
+            callback.from_user.id
+        )
+
+        await bot.send_message(
+            callback.from_user.id,
+            "Не вдалося зберегти завдання в базі даних.\n\n"
+            "Спробуйте ще раз або перевірте підключення до Supabase."
+        )
+        return
+
     finally:
         db.close()
 
     await state.clear()
-    await callback.answer("Завдання створено")
 
     prefix = "✔ Завдання успішно створено!\n\n"
 
     if is_research_task(task.title, task.description):
         prefix += (
-            "𓁶 Схоже на навчальне або дослідницьке завдання. "
-            "Кнопка «🔎 Джерела» підбере матеріали.\n\n"
+            "Схоже на навчальне або дослідницьке завдання. "
+            "Кнопка «Джерела» допоможе підібрати матеріали.\n\n"
         )
 
-    await render_photo_screen(
+    await render_task_detail(
         bot=bot,
-        chat_id=callback.from_user.id,
         telegram_id=callback.from_user.id,
-        photo_path=CREATE_STEP_4_IMAGE,
-        caption=f"{prefix}{format_task(task)}",
-        reply_markup=task_actions_keyboard(
-            task.id,
-            task.status,
-        ),
+        task_id=task.id,
+        prefix=prefix
     )
-
 
 @router.callback_query(F.data == "flow:cancel")
 async def cancel_flow(
