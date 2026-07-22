@@ -55,58 +55,6 @@
 3. введення дедлайну;
 4. вибір пріоритету.
 
-Після збереження фінальний екран використовує зображення четвертого етапу.
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="assets/create/step_1.png" alt="Етап 1 — назва завдання" width="360"><br>
-      <strong>1. Назва</strong>
-    </td>
-    <td align="center">
-      <img src="assets/create/step_2.png" alt="Етап 2 — опис завдання" width="360"><br>
-      <strong>2. Опис</strong>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="assets/create/step_3.png" alt="Етап 3 — дедлайн" width="360"><br>
-      <strong>3. Дедлайн</strong>
-    </td>
-    <td align="center">
-      <img src="assets/create/step_4.png" alt="Етап 4 — пріоритет" width="360"><br>
-      <strong>4. Пріоритет і результат</strong>
-    </td>
-  </tr>
-</table>
-
-### Основні розділи
-
-<table>
-  <tr>
-    <td align="center">
-      <img src="assets/tasks/tasks.png" alt="Мої завдання та завдання на сьогодні" width="350"><br>
-      <strong>Мої завдання / На сьогодні</strong>
-    </td>
-    <td align="center">
-      <img src="assets/statistics/statistics.png" alt="Статистика Taskly2" width="350"><br>
-      <strong>Статистика</strong>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <img src="assets/settings/settings.png" alt="Налаштування Taskly2" width="350"><br>
-      <strong>Налаштування</strong>
-    </td>
-    <td align="center">
-      <img src="assets/help/help.png" alt="Допомога Taskly2" width="350"><br>
-      <strong>Допомога</strong>
-    </td>
-  </tr>
-</table>
-
-> Зображення з’являться в README після додавання відповідних файлів до Git та завантаження на GitHub.
-
 ---
 
 ## Схема роботи
@@ -372,28 +320,6 @@ git push
 ```
 
 ---
-
-## Відомі обмеження
-
-- SQLite призначена для локального або невеликого навчального розгортання;
-- FSM-стани в `MemoryStorage` скидаються після перезапуску;
-- підпис до фотографії Telegram має обмеження за довжиною;
-- AI-функції потребують окремого API-доступу;
-- зовнішні сервіси можуть бути тимчасово недоступними.
-
----
-
-## План розвитку
-
-- повторювані завдання;
-- категорії та теги;
-- персональний вибір часового поясу;
-- PostgreSQL і Alembic;
-- Docker;
-- автоматизовані тести;
-- вебпанель адміністратора;
-- кешування Telegram `file_id`.
-
 ---
 
 <p align="center">
