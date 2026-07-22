@@ -137,7 +137,7 @@ Testly2/
 ### 1. Клонування
 
 ```bash
-git clone https://github.com/JeanShain/Testly2.git
+git clone https://github.com/JeanShain/Taskly2.git
 cd Testly2
 ```
 
