@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+from aiohttp import web
 
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -15,9 +17,29 @@ from handlers.tasks import router as tasks_router
 from scheduler import start_scheduler
 
 
+async def health_check(request):
+    return web.Response(text="Taskly2 is running")
+
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    app.router.add_get("/health", health_check)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    port = int(os.getenv("PORT", "10000"))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+    logging.info("Web server started on port %s", port)
+    return runner
+
 async def main():
     validate_config()
     init_db()
+    web_runner = await start_web_server()
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
@@ -37,6 +59,7 @@ async def main():
         await dp.start_polling(bot)
     finally:
         scheduler.shutdown(wait=False)
+        await web_runner.cleanup()
         await bot.session.close()
 
 
