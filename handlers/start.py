@@ -1,6 +1,7 @@
 from aiogram import Bot, F, Router
 from aiogram.filters import CommandStart
 from aiogram.types import CallbackQuery, Message
+from aiogram.fsm.context import FSMContext
 from config import TIMEZONE, START_PHOTO_ID
 from database import SessionLocal
 from keyboards.main_menu import (back_to_main_keyboard, main_menu_keyboard,)
@@ -73,21 +74,23 @@ async def show_home(
 @router.message(CommandStart())
 async def start_handler(
     message: Message,
-    bot: Bot
+    bot: Bot,
+    state: FSMContext,
 ):
     telegram_user = message.from_user
 
     if telegram_user is None:
         return
 
-    db = SessionLocal()
+    await state.clear()
 
+    db = SessionLocal()
     try:
         get_or_create_user(
             db=db,
             telegram_id=telegram_user.id,
             username=telegram_user.username,
-            first_name=telegram_user.first_name
+            first_name=telegram_user.first_name,
         )
     finally:
         db.close()
@@ -99,7 +102,7 @@ async def start_handler(
         bot=bot,
         chat_id=message.chat.id,
         telegram_id=telegram_user.id,
-        first_name=telegram_user.first_name
+        first_name=telegram_user.first_name,
     )
 
 
