@@ -1,40 +1,19 @@
 from datetime import datetime
 from typing import Optional
-
 from aiogram import Bot, F, Router
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import CallbackQuery, Message
-
 from database import SessionLocal
 from handlers.start import show_home
 from keyboards.main_menu import back_to_main_keyboard
-from keyboards.task_keyboard import (
-    cancel_flow_keyboard,
-    confirm_delete_keyboard,
-    edit_fields_keyboard,
-    edit_priority_keyboard,
-    priority_keyboard,
-    task_actions_keyboard,
-    task_list_keyboard,
-)
+from keyboards.task_keyboard import (cancel_flow_keyboard, confirm_delete_keyboard, edit_fields_keyboard, edit_priority_keyboard, priority_keyboard, task_actions_keyboard, task_list_keyboard,)
 from services.source_service import is_research_task
-from services.task_service import (
-    complete_task,
-    create_task,
-    delete_task,
-    get_task_for_user,
-    get_tasks_for_user,
-    get_today_tasks,
-    update_task,
-)
-from services.ui_service import (
-    delete_message_safely,
-    render_screen,
-)
+from services.task_service import (complete_task, create_task, delete_task, get_task_for_user, get_tasks_for_user, get_today_tasks, update_task,)
+from services.ui_service import (delete_message_safely, render_screen, render_photo_screen)
 from services.user_service import get_user_by_telegram_id
 from utils.helpers import format_task, parse_deadline
-
+from services.screen_images import (CREATE_STEP_1_IMAGE, CREATE_STEP_2_IMAGE, CREATE_STEP_3_IMAGE, CREATE_STEP_4_IMAGE, TASKS_IMAGE,)
 
 router = Router()
 
@@ -45,6 +24,31 @@ class CreateTaskStates(StatesGroup):
     waiting_for_deadline = State()
     waiting_for_priority = State()
 
+async def render_create_step(
+    bot: Bot,
+    chat_id: int,
+    telegram_id: int,
+    step: int,
+    text: str,
+    reply_markup,
+) -> None:
+    images = {
+        1: CREATE_STEP_1_IMAGE,
+        2: CREATE_STEP_2_IMAGE,
+        3: CREATE_STEP_3_IMAGE,
+        4: CREATE_STEP_4_IMAGE,
+    }
+
+    photo_path = images.get(step, CREATE_STEP_1_IMAGE)
+
+    await render_photo_screen(
+        bot=bot,
+        chat_id=chat_id,
+        telegram_id=telegram_id,
+        photo_path=photo_path,
+        caption=text,
+        reply_markup=reply_markup,
+    )
 
 class EditTaskStates(StatesGroup):
     waiting_for_title = State()
@@ -62,16 +66,17 @@ async def start_task_creation(
     await state.set_state(CreateTaskStates.waiting_for_title)
     await callback.answer()
 
-    await render_screen(
+    await render_create_step(
         bot=bot,
         chat_id=callback.from_user.id,
         telegram_id=callback.from_user.id,
+        step=1,
         text=(
             "✱ Створення завдання\n\n"
             "Введіть назву завдання.\n\n"
             "⛑︎ Наприклад: звіт за сьогодні"
         ),
-        reply_markup=cancel_flow_keyboard()
+        reply_markup=cancel_flow_keyboard(),
     )
 
 
@@ -85,39 +90,48 @@ async def process_task_title(
     await delete_message_safely(message)
 
     if len(title) < 3:
-        await render_screen(
-            bot,
-            message.chat.id,
-            message.from_user.id,
-            "Назва занадто коротка.\n\n"
-            "⛑︎ Введіть щонайменше 3 символи:",
-            cancel_flow_keyboard()
+        await render_create_step(
+            bot=bot,
+            chat_id=callback.from_user.id,
+            telegram_id=callback.from_user.id,
+            step=1,
+            text=(
+                "Назва занадто коротка.\n\n"
+                "⛑︎ Введіть щонайменше 3 символи:"
+            ),
+            reply_markup=cancel_flow_keyboard(),
         )
         return
 
     if len(title) > 255:
-        await render_screen(
-            bot,
-            message.chat.id,
-            message.from_user.id,
-            "Назва занадто довга.\n\n"
-            "⛑︎ Максимум — 255 символів:",
-            cancel_flow_keyboard()
+        await render_create_step(
+            bot=bot,
+            chat_id=callback.from_user.id,
+            telegram_id=callback.from_user.id,
+            step=1,
+            TEXT=(
+                "Назва занадто довга.\n\n"
+                "⛑︎ Максимум — 255 символів:"
+            ),
+            reply_markup=cancel_flow_keyboard()
         )
         return
 
     await state.update_data(title=title)
     await state.set_state(CreateTaskStates.waiting_for_description)
 
-    await render_screen(
-        bot,
-        message.chat.id,
-        message.from_user.id,
-        "✱ Створення завдання\n\n"
-        f"Назва: {title}\n\n"
-        "Додайте опис завдання.\n"
-        "⛑︎ Щоб пропустити цей крок, надішліть символ: -",
-        cancel_flow_keyboard()
+    await render_create_step(
+        bot=bot,
+        chat_id=message.chat.id,
+        telegram_id=message.from_user.id,
+        step=2,
+        text=(
+            "✱ Створення завдання\n\n"
+            f"Назва: {title}\n\n"
+            "Додайте опис завдання.\n"
+            "⛑︎ Щоб пропустити цей крок, надішліть символ: -"
+        ),
+        reply_markup=cancel_flow_keyboard(),
     )
 
 
@@ -131,13 +145,17 @@ async def process_task_description(
     await delete_message_safely(message)
 
     if len(description_text) > 2000:
-        await render_screen(
-            bot,
-            message.chat.id,
-            message.from_user.id,
-            "Опис занадто довгий.\n\n"
-            "⛑︎ Максимум — 2000 символів:",
-            cancel_flow_keyboard()
+        await render_create_step(
+            bot=bot,
+            chat_id=message.chat.id,
+            telegram_id=message.from_user.id,
+            step=2,
+            text=(
+                "Опис занадто довгий.\n\n"
+                "⛑︎ Максимум — 2000 символів:"
+            ),
+
+            reply_markup=cancel_flow_keyboard(),
         )
         return
 
@@ -146,15 +164,18 @@ async def process_task_description(
     await state.update_data(description=description)
     await state.set_state(CreateTaskStates.waiting_for_deadline)
 
-    await render_screen(
-        bot,
-        message.chat.id,
-        message.from_user.id,
-        "✱ Створення завдання\n\n"
-        "Введіть дату і час виконання у форматі:\n\n"
-        "ДД.ММ.РРРР ГГ:ХХ\n\n"
-        "⛑︎ Наприклад: 25.07.2026 18:30",
-        cancel_flow_keyboard()
+    await render_create_step(
+        bot=bot,
+        chat_id=message.chat.id,
+        telegram_id=message.from_user.id,
+        step=3,
+        text=(
+            "✱ Створення завдання\n\n"
+            "Введіть дату і час виконання у форматі:\n\n"
+            "ДД.ММ.РРРР ГГ:ХХ\n\n"
+            "⛑︎ Наприклад: 25.07.2026 18:30"
+        ),
+        reply_markup=cancel_flow_keyboard(),
     )
 
 
@@ -170,26 +191,33 @@ async def process_task_deadline(
     try:
         deadline = parse_deadline(deadline_text)
     except ValueError:
-        await render_screen(
-            bot,
-            message.chat.id,
-            message.from_user.id,
-            "Неправильний формат дати.\n\n"
-            "⛑︎ Введіть дату так: 25.07.2026 18:30",
-            cancel_flow_keyboard()
+        await render_create_step(
+            bot=bot,
+            chat_id=message.chat.id,
+            telegram_id=message.from_user.id,
+            step=3,
+            text=(
+                "Неправильний формат дати.\n\n"
+                "⛑︎ Введіть дату так: 25.07.2026 18:30"
+            ),
+
+            reply_markup=cancel_flow_keyboard(),
         )
         return
 
     from services.time_service import now_local
 
     if deadline <= now_local():
-        await render_screen(
-            bot,
-            message.chat.id,
-            message.from_user.id,
-            "Дедлайн має бути в майбутньому.\n\n"
-            "Введіть іншу дату:",
-            cancel_flow_keyboard()
+        await render_create_step(
+            bot=bot,
+            chat_id=message.chat.id,
+            telegram_id=message.from_user.id,
+            step=3,
+            text=(
+                "Дедлайн має бути в майбутньому.\n\n"
+                "Введіть іншу дату:",
+            ),
+            reply_markup=cancel_flow_keyboard(),
         )
         return
 
@@ -198,13 +226,16 @@ async def process_task_deadline(
     )
     await state.set_state(CreateTaskStates.waiting_for_priority)
 
-    await render_screen(
-        bot,
-        message.chat.id,
-        message.from_user.id,
-        "✱ Створення завдання\n\n"
-        "Оберіть пріоритет:",
-        priority_keyboard()
+    await render_create_step(
+        bot=bot,
+        chat_id=message.chat.id,
+        telegram_id=message.from_user.id,
+        step=4,
+        text=(
+            "✱ Створення завдання\n\n"
+            "Оберіть пріоритет:"
+        ),
+        reply_markup=priority_keyboard(),
     )
 
 
@@ -270,11 +301,16 @@ async def process_task_priority(
             "Кнопка «🔎 Джерела» підбере матеріали.\n\n"
         )
 
-    await render_task_detail(
+    await render_photo_screen(
         bot=bot,
+        chat_id=callback.from_user.id,
         telegram_id=callback.from_user.id,
-        task_id=task.id,
-        prefix=prefix
+        photo_path=CREATE_STEP_4_IMAGE,
+        caption=f"{prefix}{format_task(task)}",
+        reply_markup=task_actions_keyboard(
+            task.id,
+            task.status,
+        ),
     )
 
 
@@ -350,12 +386,13 @@ async def render_task_list(
         db.close()
 
     if not tasks:
-        await render_screen(
-            bot,
-            telegram_id,
-            telegram_id,
-            f"{title}\n\nАктивних завдань не знайдено.",
-            back_to_main_keyboard()
+        await render_photo_screen(
+            bot=bot,
+            chat_id=telegram_id,
+            telegram_id=telegram_id,
+            photo_path=TASKS_IMAGE,
+            caption=f"{title}\n\nАктивних завдань не знайдено.",
+            reply_markup=back_to_main_keyboard(),
         )
         return
 
@@ -370,12 +407,13 @@ async def render_task_list(
     lines.append("")
     lines.append("Оберіть завдання:")
 
-    await render_screen(
-        bot,
-        telegram_id,
-        telegram_id,
-        "\n".join(lines),
-        task_list_keyboard(tasks)
+    await render_photo_screen(
+        bot=bot,
+        chat_id=telegram_id,
+        telegram_id=telegram_id,
+        photo_path=TASKS_IMAGE,
+        caption="\n".join(lines),
+        reply_markup=task_list_keyboard(tasks),
     )
 
 

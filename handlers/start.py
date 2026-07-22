@@ -6,11 +6,12 @@ from config import TIMEZONE, START_PHOTO_ID
 from database import SessionLocal
 from keyboards.main_menu import (back_to_main_keyboard, main_menu_keyboard,)
 from services.task_service import get_statistics
-from services.ui_service import (delete_message_safely, remove_legacy_reply_keyboard, render_screen, render_home_photo)
+from services.ui_service import (delete_message_safely, remove_legacy_reply_keyboard, render_screen, render_home_photo, render_photo_screen)
 from services.user_service import get_or_create_user
 from pathlib import Path
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, FSInputFile, Message
+from services.screen_images import (HELP_IMAGE, SETTINGS_IMAGE,)
 
 router = Router()
 #
@@ -127,21 +128,22 @@ async def help_callback(
 ):
     await callback.answer()
 
-    await render_screen(
+    await render_photo_screen(
         bot=bot,
         chat_id=callback.from_user.id,
         telegram_id=callback.from_user.id,
-        text=(
+        photo_path=HELP_IMAGE,
+        caption=(
             "✱ Як користуватися Taskly\n\n"
             "1. Створіть завдання.\n"
             "2. Введіть назву, опис і дедлайн.\n"
             "3. Оберіть пріоритет.\n"
             "4. Відкрийте завдання зі списку, щоб виконати, "
             "відредагувати або видалити його.\n\n"
-            "⛑︎ ︎Під час введення Taskly2 видаляє ваші службові "
+            "⛑︎ Під час введення Taskly видаляє ваші службові "
             "повідомлення, тому чат залишається чистим."
         ),
-        reply_markup=back_to_main_keyboard()
+        reply_markup=back_to_main_keyboard(),
     )
 
 
@@ -152,16 +154,17 @@ async def settings_callback(
 ):
     await callback.answer()
 
-    await render_screen(
+    await render_photo_screen(
         bot=bot,
         chat_id=callback.from_user.id,
         telegram_id=callback.from_user.id,
-        text=(
+        photo_path=SETTINGS_IMAGE,
+        caption=(
             "⚒︎ Налаштування Taskly\n\n"
             f"Часовий пояс: {TIMEZONE}\n"
             "Нагадування: у момент настання дедлайну\n"
             "Мова інтерфейсу: українська\n"
             "Режим інтерфейсу: чистий чат"
         ),
-        reply_markup=back_to_main_keyboard()
+        reply_markup=back_to_main_keyboard(),
     )
