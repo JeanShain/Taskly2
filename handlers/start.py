@@ -13,19 +13,19 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import CallbackQuery, FSInputFile, Message
 
 router = Router()
-
-@router.message(F.photo)
-async def get_photo_file_id(message: Message):
-    if not message.photo:
-        return
-
-    photo = message.photo[-1]
-
-    print(f"START_PHOTO_ID={photo.file_id}")
-
-    await message.answer(
-        f"START_PHOTO_ID={photo.file_id}"
-    )
+#
+# @router.message(F.photo)
+# async def get_photo_file_id(message: Message):
+#     if not message.photo:
+#         return
+#
+#     photo = message.photo[-1]
+#
+#     print(f"START_PHOTO_ID={photo.file_id}")
+#
+#     await message.answer(
+#         f"START_PHOTO_ID={photo.file_id}"
+#     )
 
 
 def build_home_text(
@@ -95,7 +95,6 @@ async def start_handler(
     finally:
         db.close()
 
-    await delete_message_safely(message)
     await remove_legacy_reply_keyboard(bot, message.chat.id)
 
     await show_home(

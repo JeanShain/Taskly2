@@ -84,69 +84,50 @@ async def render_screen(
     chat_id: int,
     telegram_id: int,
     text: str,
-    reply_markup: Optional[InlineKeyboardMarkup] = None
+    reply_markup: Optional[InlineKeyboardMarkup] = None,
 ) -> Optional[int]:
     """
-    pедагує  повідомлення
-    якщо його вже немає то створює нове ы записуе id
+    Видаляє попередній екран і створює новий текстовий екран.
+    Працює однаково після фотографій і текстових повідомлень.
     """
     db = SessionLocal()
-
     try:
-        message_id = get_interface_message_id(db, telegram_id)
+        old_message_id = get_interface_message_id(
+            db=db,
+            telegram_id=telegram_id,
+        )
     finally:
         db.close()
 
-    if message_id is not None:
+    if old_message_id is not None:
         try:
-            await bot.edit_message_text(
+            await bot.delete_message(
                 chat_id=chat_id,
-                message_id=message_id,
-                text=text,
-                reply_markup=reply_markup
+                message_id=old_message_id,
             )
-            return message_id
-        except TelegramBadRequest as error:
-            # повертає помилку якщо текст і клавіатура не змінилися
-            if "message is not modified" in str(error).lower():
-                return message_id
-
-            try:
-                await bot.delete_message(
-                    chat_id=chat_id,
-                    message_id=message_id
-                )
-            except (
-                    TelegramBadRequest,
-                    TelegramForbiddenError
-            ):
-                pass
-
-        except TelegramForbiddenError:
-            return None
+        except (TelegramBadRequest, TelegramForbiddenError):
+            pass
 
     try:
         sent_message = await bot.send_message(
             chat_id=chat_id,
             text=text,
-            reply_markup=reply_markup
+            reply_markup=reply_markup,
         )
-    except TelegramForbiddenError:
+    except (TelegramBadRequest, TelegramForbiddenError):
         return None
 
     db = SessionLocal()
-
     try:
         set_interface_message_id(
             db=db,
             telegram_id=telegram_id,
-            message_id=sent_message.message_id
+            message_id=sent_message.message_id,
         )
     finally:
         db.close()
 
     return sent_message.message_id
-
 
 async def delete_message_safely(message: Message) -> None:
     try:
@@ -159,19 +140,19 @@ async def delete_message_safely(message: Message) -> None:
 
 async def remove_legacy_reply_keyboard(
     bot: Bot,
-    chat_id: int
+    chat_id: int,
 ) -> None:
     """
-    nрибирає стару replykeyboard від попередньої версії taskly2
-    cлужбове повідомлення відразу видаляється
+    Прибирає стару ReplyKeyboard.
+
+    Повідомлення навмисно не видаляється одразу,
+    щоб Telegram Desktop встиг застосувати ReplyKeyboardRemove.
     """
     try:
-        temporary_message = await bot.send_message(
+        await bot.send_message(
             chat_id=chat_id,
-            text="Оновлюю інтерфейс Taskly…",
-            reply_markup=ReplyKeyboardRemove()
+            text="⌨️ Поле введення оновлено. Тепер можна вводити текст.",
+            reply_markup=ReplyKeyboardRemove(),
         )
-        await delete_message_safely(temporary_message)
-    except TelegramForbiddenError:
+    except (TelegramBadRequest, TelegramForbiddenError):
         pass
-
