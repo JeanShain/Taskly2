@@ -1,10 +1,24 @@
-from typing import Optional
 from pathlib import Path
+from typing import Optional, Union
+
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+from aiogram.exceptions import (
+    TelegramBadRequest,
+    TelegramForbiddenError,
+)
+from aiogram.types import (
+    FSInputFile,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Message,
+    ReplyKeyboardRemove,
+)
+
 from database import SessionLocal
-from services.user_service import (get_interface_message_id, set_interface_message_id,)
-from aiogram.types import (FSInputFile, InlineKeyboardMarkup, Message, ReplyKeyboardRemove,)
+from services.user_service import (
+    get_interface_message_id,
+    set_interface_message_id,
+)
 
 async def render_home_photo(
     bot: Bot,
@@ -121,22 +135,67 @@ async def render_screen(
 
     return sent_message.message_id
 
+PhotoSource = Union[str, Path]
+
+
+def prepare_photo_source(
+    photo_source: PhotoSource,
+):
+    """
+    Підтримує два варіанти:
+
+    1. Telegram file_id як рядок.
+    2. Локальний файл через Path або рядок-шлях.
+    """
+
+    if isinstance(photo_source, Path):
+        if not photo_source.is_file():
+            return None
+
+        return FSInputFile(photo_source)
+
+    if isinstance(photo_source, str):
+        photo_source = photo_source.strip()
+
+        if not photo_source:
+            return None
+
+        # Перевіряємо, чи рядок є шляхом до локального файла.
+        possible_path = Path(photo_source)
+
+        if possible_path.is_file():
+            return FSInputFile(possible_path)
+
+        # Інакше вважаємо його Telegram file_id.
+        return photo_source
+
+    return None
+
+
 async def render_photo_screen(
     bot: Bot,
     chat_id: int,
     telegram_id: int,
-    photo_path: Path,
+    photo_path: PhotoSource,
     caption: str,
     reply_markup: Optional[InlineKeyboardMarkup] = None,
 ) -> Optional[int]:
     """
-    Видаляє попередній екран Taskly і створює новий екран
-    із локальним зображенням, текстом та inline-кнопками.
+    Показує екран у вигляді:
+
+    фотографія + підпис + Inline-кнопки.
+
+    Працює як із локальними файлами,
+    так і з Telegram file_id.
     """
 
-    # Якщо файл не знайдений, показуємо звичайний текстовий екран.
-    if not photo_path.is_file():
-        print(f"[Taskly] Зображення не знайдено: {photo_path}")
+    photo = prepare_photo_source(photo_path)
+
+    if photo is None:
+        print(
+            "Зображення не знайдено або file_id не вказаний:",
+            photo_path,
+        )
 
         return await render_screen(
             bot=bot,
@@ -147,43 +206,68 @@ async def render_photo_screen(
         )
 
     db = SessionLocal()
+
     try:
-        old_message_id = get_interface_message_id(
+        message_id = get_interface_message_id(
             db=db,
             telegram_id=telegram_id,
         )
     finally:
         db.close()
 
-    if old_message_id is not None:
+    if message_id is not None:
         try:
-            await bot.delete_message(
+            await bot.edit_message_media(
                 chat_id=chat_id,
-                message_id=old_message_id,
+                message_id=message_id,
+                media=InputMediaPhoto(
+                    media=photo,
+                    caption=caption,
+                    parse_mode="HTML",
+                ),
+                reply_markup=reply_markup,
             )
-        except (TelegramBadRequest, TelegramForbiddenError):
-            pass
 
-    # Telegram дозволяє максимум 1024 символи в описі фотографії.
-    safe_caption = caption
+            return message_id
 
-    if len(safe_caption) > 1024:
-        safe_caption = (
-            safe_caption[:1000].rstrip()
-            + "\n\n…"
-        )
+        except TelegramBadRequest as error:
+            error_text = str(error).lower()
+
+            if "message is not modified" in error_text:
+                return message_id
+
+            print(
+                "Не вдалося відредагувати медіаповідомлення:",
+                error,
+            )
+
+            try:
+                await bot.delete_message(
+                    chat_id=chat_id,
+                    message_id=message_id,
+                )
+            except (
+                TelegramBadRequest,
+                TelegramForbiddenError,
+            ):
+                pass
+
+        except TelegramForbiddenError:
+            return None
 
     try:
         sent_message = await bot.send_photo(
             chat_id=chat_id,
-            photo=FSInputFile(str(photo_path)),
-            caption=safe_caption,
+            photo=photo,
+            caption=caption,
+            parse_mode="HTML",
             reply_markup=reply_markup,
         )
-    except (TelegramBadRequest, TelegramForbiddenError) as error:
+
+    except TelegramBadRequest as error:
         print(
-            f"[Taskly] Не вдалося надіслати зображення "
-            f"{photo_path}: {error}"
+            "Telegram не прийняв зображення або file_id:",
+            error,
         )
 
         return await render_screen(
@@ -194,7 +278,11 @@ async def render_photo_screen(
             reply_markup=reply_markup,
         )
 
+    except TelegramForbiddenError:
+        return None
+
     db = SessionLocal()
+
     try:
         set_interface_message_id(
             db=db,
